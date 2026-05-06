@@ -12,7 +12,7 @@ RUN apt-get update && apt-get install -y \
 RUN pip install uv
 
 # Copy project definition
-COPY pyproject.toml .
+COPY pyproject.toml README.md ./
 
 # Install dependencies
 RUN uv pip install --system -e ".[prod]"
