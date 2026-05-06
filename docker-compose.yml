@@ -45,8 +45,11 @@ services:
       - "8001:8001" # MCP Server
     environment:
       - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-datacontextos}
+      - DCOS_DATABASE=postgresql
+      - DCOS_TRACER=phoenix
       - PHOENIX_COLLECTOR_ENDPOINT=http://phoenix:4317
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
       - ENVIRONMENT=production
     volumes:
       - ./.env:/app/.env
