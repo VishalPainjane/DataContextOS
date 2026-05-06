@@ -1,0 +1,349 @@
+{
+  "metadata": {
+    "dbt_schema_version": "https://schemas.getdbt.com/dbt/manifest/v11/manifest.json",
+    "dbt_version": "1.8.0",
+    "generated_at": "2026-01-15T10:30:00Z",
+    "project_name": "ecommerce_analytics"
+  },
+  "nodes": {
+    "model.ecommerce_analytics.stg_orders": {
+      "unique_id": "model.ecommerce_analytics.stg_orders",
+      "name": "stg_orders",
+      "resource_type": "model",
+      "schema": "staging",
+      "database": "analytics",
+      "description": "Staged orders data from the raw orders table. Cleans and standardizes column names, filters out test orders, and adds derived fields like order_date from timestamp.",
+      "columns": {
+        "order_id": {"name": "order_id", "description": "Unique identifier for each order", "data_type": "varchar"},
+        "customer_id": {"name": "customer_id", "description": "Foreign key to the customers table", "data_type": "varchar"},
+        "order_date": {"name": "order_date", "description": "Date when the order was placed", "data_type": "date"},
+        "status": {"name": "status", "description": "Current order status: pending, shipped, delivered, returned, cancelled", "data_type": "varchar"},
+        "total_amount": {"name": "total_amount", "description": "Total order amount in USD before discounts", "data_type": "decimal"},
+        "discount_amount": {"name": "discount_amount", "description": "Total discount applied to the order", "data_type": "decimal"},
+        "net_amount": {"name": "net_amount", "description": "Final amount after discounts (total_amount - discount_amount)", "data_type": "decimal"}
+      },
+      "depends_on": {"nodes": ["source.ecommerce_analytics.raw.orders"]},
+      "config": {"materialized": "view"},
+      "tags": ["staging", "orders", "finance"],
+      "meta": {"owner": "data-engineering", "domain": "finance", "freshness_sla_hours": 6, "sensitivity": "internal"}
+    },
+    "model.ecommerce_analytics.stg_customers": {
+      "unique_id": "model.ecommerce_analytics.stg_customers",
+      "name": "stg_customers",
+      "resource_type": "model",
+      "schema": "staging",
+      "database": "analytics",
+      "description": "Staged customer data. Deduplicates customers by email, standardizes names, and maps legacy customer IDs to the new format.",
+      "columns": {
+        "customer_id": {"name": "customer_id", "description": "Unique customer identifier", "data_type": "varchar"},
+        "email": {"name": "email", "description": "Customer email address (PII - masked in non-prod)", "data_type": "varchar"},
+        "first_name": {"name": "first_name", "description": "Customer first name", "data_type": "varchar"},
+        "last_name": {"name": "last_name", "description": "Customer last name", "data_type": "varchar"},
+        "created_at": {"name": "created_at", "description": "When the customer account was created", "data_type": "timestamp"},
+        "segment": {"name": "segment", "description": "Customer segment: new, active, churned, vip", "data_type": "varchar"}
+      },
+      "depends_on": {"nodes": ["source.ecommerce_analytics.raw.customers"]},
+      "config": {"materialized": "view"},
+      "tags": ["staging", "customers", "marketing"],
+      "meta": {"owner": "data-engineering", "domain": "marketing", "freshness_sla_hours": 12, "sensitivity": "confidential"}
+    },
+    "model.ecommerce_analytics.stg_products": {
+      "unique_id": "model.ecommerce_analytics.stg_products",
+      "name": "stg_products",
+      "resource_type": "model",
+      "schema": "staging",
+      "database": "analytics",
+      "description": "Staged product catalog data. Normalizes category hierarchies and standardizes pricing to USD.",
+      "columns": {
+        "product_id": {"name": "product_id", "description": "Unique product identifier", "data_type": "varchar"},
+        "product_name": {"name": "product_name", "description": "Display name of the product", "data_type": "varchar"},
+        "category": {"name": "category", "description": "Primary product category", "data_type": "varchar"},
+        "subcategory": {"name": "subcategory", "description": "Product subcategory", "data_type": "varchar"},
+        "price_usd": {"name": "price_usd", "description": "Product price in US dollars", "data_type": "decimal"},
+        "is_active": {"name": "is_active", "description": "Whether the product is currently available for sale", "data_type": "boolean"}
+      },
+      "depends_on": {"nodes": ["source.ecommerce_analytics.raw.products"]},
+      "config": {"materialized": "view"},
+      "tags": ["staging", "products", "catalog"],
+      "meta": {"owner": "product-team", "domain": "product", "freshness_sla_hours": 24, "sensitivity": "public"}
+    },
+    "model.ecommerce_analytics.stg_order_items": {
+      "unique_id": "model.ecommerce_analytics.stg_order_items",
+      "name": "stg_order_items",
+      "resource_type": "model",
+      "schema": "staging",
+      "database": "analytics",
+      "description": "Staged order line items. Links orders to products with quantity and pricing details.",
+      "columns": {
+        "order_item_id": {"name": "order_item_id", "description": "Unique line item identifier", "data_type": "varchar"},
+        "order_id": {"name": "order_id", "description": "Foreign key to orders", "data_type": "varchar"},
+        "product_id": {"name": "product_id", "description": "Foreign key to products", "data_type": "varchar"},
+        "quantity": {"name": "quantity", "description": "Number of units ordered", "data_type": "integer"},
+        "unit_price": {"name": "unit_price", "description": "Price per unit at time of order", "data_type": "decimal"},
+        "line_total": {"name": "line_total", "description": "quantity * unit_price", "data_type": "decimal"}
+      },
+      "depends_on": {"nodes": ["source.ecommerce_analytics.raw.order_items"]},
+      "config": {"materialized": "view"},
+      "tags": ["staging", "orders", "finance"],
+      "meta": {"owner": "data-engineering", "domain": "finance", "freshness_sla_hours": 6, "sensitivity": "internal"}
+    },
+    "model.ecommerce_analytics.stg_payments": {
+      "unique_id": "model.ecommerce_analytics.stg_payments",
+      "name": "stg_payments",
+      "resource_type": "model",
+      "schema": "staging",
+      "database": "analytics",
+      "description": "Staged payment transactions. Maps payment methods and standardizes currency amounts.",
+      "columns": {
+        "payment_id": {"name": "payment_id", "description": "Unique payment transaction ID", "data_type": "varchar"},
+        "order_id": {"name": "order_id", "description": "Order this payment is for", "data_type": "varchar"},
+        "payment_method": {"name": "payment_method", "description": "Payment method: credit_card, debit_card, bank_transfer, gift_card", "data_type": "varchar"},
+        "amount": {"name": "amount", "description": "Payment amount in USD", "data_type": "decimal"},
+        "status": {"name": "status", "description": "Payment status: pending, completed, failed, refunded", "data_type": "varchar"},
+        "processed_at": {"name": "processed_at", "description": "When the payment was processed", "data_type": "timestamp"}
+      },
+      "depends_on": {"nodes": ["source.ecommerce_analytics.raw.payments"]},
+      "config": {"materialized": "view"},
+      "tags": ["staging", "payments", "finance"],
+      "meta": {"owner": "data-engineering", "domain": "finance", "freshness_sla_hours": 4, "sensitivity": "confidential"}
+    },
+    "model.ecommerce_analytics.int_order_payments": {
+      "unique_id": "model.ecommerce_analytics.int_order_payments",
+      "name": "int_order_payments",
+      "resource_type": "model",
+      "schema": "intermediate",
+      "database": "analytics",
+      "description": "Intermediate model joining orders with their payment information. Aggregates multiple payments per order.",
+      "columns": {
+        "order_id": {"name": "order_id", "description": "Order identifier", "data_type": "varchar"},
+        "total_paid": {"name": "total_paid", "description": "Sum of all successful payments for this order", "data_type": "decimal"},
+        "payment_count": {"name": "payment_count", "description": "Number of payment transactions", "data_type": "integer"},
+        "primary_payment_method": {"name": "primary_payment_method", "description": "Most used payment method for this order", "data_type": "varchar"}
+      },
+      "depends_on": {"nodes": ["model.ecommerce_analytics.stg_orders", "model.ecommerce_analytics.stg_payments"]},
+      "config": {"materialized": "table"},
+      "tags": ["intermediate", "payments", "finance"],
+      "meta": {"owner": "analytics-team", "domain": "finance", "freshness_sla_hours": 6, "sensitivity": "confidential"}
+    },
+    "model.ecommerce_analytics.int_customer_orders": {
+      "unique_id": "model.ecommerce_analytics.int_customer_orders",
+      "name": "int_customer_orders",
+      "resource_type": "model",
+      "schema": "intermediate",
+      "database": "analytics",
+      "description": "Intermediate model computing per-customer order metrics. Calculates lifetime value, order frequency, and recency.",
+      "columns": {
+        "customer_id": {"name": "customer_id", "description": "Customer identifier", "data_type": "varchar"},
+        "total_orders": {"name": "total_orders", "description": "Total number of orders placed", "data_type": "integer"},
+        "total_revenue": {"name": "total_revenue", "description": "Total revenue from this customer", "data_type": "decimal"},
+        "first_order_date": {"name": "first_order_date", "description": "Date of first purchase", "data_type": "date"},
+        "last_order_date": {"name": "last_order_date", "description": "Date of most recent purchase", "data_type": "date"},
+        "avg_order_value": {"name": "avg_order_value", "description": "Average order value", "data_type": "decimal"}
+      },
+      "depends_on": {"nodes": ["model.ecommerce_analytics.stg_customers", "model.ecommerce_analytics.stg_orders", "model.ecommerce_analytics.stg_order_items"]},
+      "config": {"materialized": "table"},
+      "tags": ["intermediate", "customers", "marketing"],
+      "meta": {"owner": "analytics-team", "domain": "marketing", "freshness_sla_hours": 12, "sensitivity": "internal"}
+    },
+    "model.ecommerce_analytics.fct_orders": {
+      "unique_id": "model.ecommerce_analytics.fct_orders",
+      "name": "fct_orders",
+      "resource_type": "model",
+      "schema": "marts",
+      "database": "analytics",
+      "description": "Fact table containing all completed orders with enriched dimensions. This is the primary orders fact table used by the finance team for revenue reporting and the marketing team for customer analytics. Joins orders with payments, customers, and product details. Updated every 6 hours.",
+      "columns": {
+        "order_id": {"name": "order_id", "description": "Unique order identifier (primary key)", "data_type": "varchar"},
+        "customer_id": {"name": "customer_id", "description": "Customer who placed the order", "data_type": "varchar"},
+        "order_date": {"name": "order_date", "description": "Date the order was placed", "data_type": "date"},
+        "status": {"name": "status", "description": "Order status", "data_type": "varchar"},
+        "total_amount": {"name": "total_amount", "description": "Gross order total", "data_type": "decimal"},
+        "net_amount": {"name": "net_amount", "description": "Net amount after discounts", "data_type": "decimal"},
+        "total_paid": {"name": "total_paid", "description": "Amount actually collected", "data_type": "decimal"},
+        "payment_method": {"name": "payment_method", "description": "Primary payment method used", "data_type": "varchar"},
+        "customer_segment": {"name": "customer_segment", "description": "Customer segment at time of order", "data_type": "varchar"},
+        "is_first_order": {"name": "is_first_order", "description": "Whether this was the customer's first order", "data_type": "boolean"}
+      },
+      "depends_on": {"nodes": ["model.ecommerce_analytics.stg_orders", "model.ecommerce_analytics.int_order_payments", "model.ecommerce_analytics.int_customer_orders"]},
+      "config": {"materialized": "table"},
+      "tags": ["marts", "orders", "finance", "core"],
+      "meta": {"owner": "analytics-team", "domain": "finance", "freshness_sla_hours": 6, "sensitivity": "internal"}
+    },
+    "model.ecommerce_analytics.fct_revenue_daily": {
+      "unique_id": "model.ecommerce_analytics.fct_revenue_daily",
+      "name": "fct_revenue_daily",
+      "resource_type": "model",
+      "schema": "marts",
+      "database": "analytics",
+      "description": "Daily revenue aggregation table. Used by the executive dashboard for daily revenue tracking. Contains gross revenue, net revenue, refund amounts, and order counts by day. Critical for month-end financial reconciliation.",
+      "columns": {
+        "date": {"name": "date", "description": "Calendar date", "data_type": "date"},
+        "gross_revenue": {"name": "gross_revenue", "description": "Total gross revenue for the day", "data_type": "decimal"},
+        "net_revenue": {"name": "net_revenue", "description": "Revenue after discounts and refunds", "data_type": "decimal"},
+        "total_orders": {"name": "total_orders", "description": "Number of orders placed", "data_type": "integer"},
+        "total_refunds": {"name": "total_refunds", "description": "Total refund amount", "data_type": "decimal"},
+        "avg_order_value": {"name": "avg_order_value", "description": "Average order value for the day", "data_type": "decimal"},
+        "new_customer_orders": {"name": "new_customer_orders", "description": "Orders from first-time customers", "data_type": "integer"}
+      },
+      "depends_on": {"nodes": ["model.ecommerce_analytics.fct_orders"]},
+      "config": {"materialized": "table"},
+      "tags": ["marts", "revenue", "finance", "executive"],
+      "meta": {"owner": "finance-team", "domain": "finance", "freshness_sla_hours": 4, "sensitivity": "confidential"}
+    },
+    "model.ecommerce_analytics.dim_customers": {
+      "unique_id": "model.ecommerce_analytics.dim_customers",
+      "name": "dim_customers",
+      "resource_type": "model",
+      "schema": "marts",
+      "database": "analytics",
+      "description": "Customer dimension table with enriched attributes including lifetime value, segment, and engagement metrics. Used across marketing, support, and product teams for customer-centric analysis.",
+      "columns": {
+        "customer_id": {"name": "customer_id", "description": "Unique customer identifier (primary key)", "data_type": "varchar"},
+        "email": {"name": "email", "description": "Customer email (PII - restricted access)", "data_type": "varchar"},
+        "full_name": {"name": "full_name", "description": "Customer full name", "data_type": "varchar"},
+        "segment": {"name": "segment", "description": "Customer segment: new, active, churned, vip", "data_type": "varchar"},
+        "lifetime_value": {"name": "lifetime_value", "description": "Total customer lifetime value in USD", "data_type": "decimal"},
+        "total_orders": {"name": "total_orders", "description": "Number of orders placed", "data_type": "integer"},
+        "first_order_date": {"name": "first_order_date", "description": "Date of first purchase", "data_type": "date"},
+        "last_order_date": {"name": "last_order_date", "description": "Date of most recent purchase", "data_type": "date"},
+        "days_since_last_order": {"name": "days_since_last_order", "description": "Recency metric in days", "data_type": "integer"},
+        "created_at": {"name": "created_at", "description": "Account creation date", "data_type": "timestamp"}
+      },
+      "depends_on": {"nodes": ["model.ecommerce_analytics.stg_customers", "model.ecommerce_analytics.int_customer_orders"]},
+      "config": {"materialized": "table"},
+      "tags": ["marts", "customers", "marketing", "core"],
+      "meta": {"owner": "marketing-team", "domain": "marketing", "freshness_sla_hours": 24, "sensitivity": "confidential"}
+    },
+    "model.ecommerce_analytics.dim_products": {
+      "unique_id": "model.ecommerce_analytics.dim_products",
+      "name": "dim_products",
+      "resource_type": "model",
+      "schema": "marts",
+      "database": "analytics",
+      "description": "Product dimension table with sales metrics. Includes category hierarchy, pricing, and product performance indicators.",
+      "columns": {
+        "product_id": {"name": "product_id", "description": "Unique product identifier", "data_type": "varchar"},
+        "product_name": {"name": "product_name", "description": "Product display name", "data_type": "varchar"},
+        "category": {"name": "category", "description": "Primary category", "data_type": "varchar"},
+        "subcategory": {"name": "subcategory", "description": "Sub-category", "data_type": "varchar"},
+        "price_usd": {"name": "price_usd", "description": "Current price in USD", "data_type": "decimal"},
+        "total_units_sold": {"name": "total_units_sold", "description": "Total units sold all-time", "data_type": "integer"},
+        "total_revenue": {"name": "total_revenue", "description": "Total revenue generated by this product", "data_type": "decimal"},
+        "is_active": {"name": "is_active", "description": "Currently for sale", "data_type": "boolean"}
+      },
+      "depends_on": {"nodes": ["model.ecommerce_analytics.stg_products", "model.ecommerce_analytics.stg_order_items"]},
+      "config": {"materialized": "table"},
+      "tags": ["marts", "products", "catalog"],
+      "meta": {"owner": "product-team", "domain": "product", "freshness_sla_hours": 24, "sensitivity": "public"}
+    },
+    "model.ecommerce_analytics.customer_segments": {
+      "unique_id": "model.ecommerce_analytics.customer_segments",
+      "name": "customer_segments",
+      "resource_type": "model",
+      "schema": "marts",
+      "database": "analytics",
+      "description": "RFM-based customer segmentation model. Assigns each customer a segment based on Recency, Frequency, and Monetary value analysis. Used by marketing for targeted campaigns and retention strategies.",
+      "columns": {
+        "customer_id": {"name": "customer_id", "description": "Customer identifier", "data_type": "varchar"},
+        "rfm_segment": {"name": "rfm_segment", "description": "RFM segment: champions, loyal, at_risk, hibernating, lost", "data_type": "varchar"},
+        "recency_score": {"name": "recency_score", "description": "Recency score 1-5 (5 = most recent)", "data_type": "integer"},
+        "frequency_score": {"name": "frequency_score", "description": "Frequency score 1-5 (5 = most frequent)", "data_type": "integer"},
+        "monetary_score": {"name": "monetary_score", "description": "Monetary score 1-5 (5 = highest value)", "data_type": "integer"},
+        "segment_updated_at": {"name": "segment_updated_at", "description": "When segment was last recalculated", "data_type": "timestamp"}
+      },
+      "depends_on": {"nodes": ["model.ecommerce_analytics.dim_customers"]},
+      "config": {"materialized": "table"},
+      "tags": ["marts", "segmentation", "marketing"],
+      "meta": {"owner": "marketing-team", "domain": "marketing", "freshness_sla_hours": 24, "sensitivity": "internal"}
+    },
+    "model.ecommerce_analytics.user_events": {
+      "unique_id": "model.ecommerce_analytics.user_events",
+      "name": "user_events",
+      "resource_type": "model",
+      "schema": "analytics",
+      "database": "analytics",
+      "description": "User behavioral events from the web application. Tracks page views, clicks, searches, add-to-cart, and purchase events. High-volume table (~10M rows/day). Used for funnel analysis and conversion optimization.",
+      "columns": {
+        "event_id": {"name": "event_id", "description": "Unique event identifier", "data_type": "varchar"},
+        "user_id": {"name": "user_id", "description": "Logged-in user ID (null for anonymous)", "data_type": "varchar"},
+        "session_id": {"name": "session_id", "description": "Browser session identifier", "data_type": "varchar"},
+        "event_type": {"name": "event_type", "description": "Event type: page_view, click, search, add_to_cart, purchase, sign_up", "data_type": "varchar"},
+        "event_timestamp": {"name": "event_timestamp", "description": "When the event occurred", "data_type": "timestamp"},
+        "page_url": {"name": "page_url", "description": "URL of the page where event occurred", "data_type": "varchar"},
+        "properties": {"name": "properties", "description": "JSON blob with event-specific properties", "data_type": "jsonb"}
+      },
+      "depends_on": {"nodes": ["source.ecommerce_analytics.events.raw_events"]},
+      "config": {"materialized": "incremental", "unique_key": "event_id"},
+      "tags": ["events", "product", "high-volume"],
+      "meta": {"owner": "product-analytics", "domain": "product", "freshness_sla_hours": 1, "sensitivity": "internal"}
+    }
+  },
+  "sources": {
+    "source.ecommerce_analytics.raw.orders": {
+      "unique_id": "source.ecommerce_analytics.raw.orders",
+      "name": "orders",
+      "resource_type": "source",
+      "source_name": "raw",
+      "schema": "raw",
+      "database": "production",
+      "description": "Raw orders table from the production PostgreSQL database. Loaded via Fivetran every 6 hours.",
+      "columns": {},
+      "meta": {"owner": "data-engineering", "domain": "finance", "freshness_sla_hours": 6}
+    },
+    "source.ecommerce_analytics.raw.customers": {
+      "unique_id": "source.ecommerce_analytics.raw.customers",
+      "name": "customers",
+      "resource_type": "source",
+      "source_name": "raw",
+      "schema": "raw",
+      "database": "production",
+      "description": "Raw customer data from the production database. Contains PII fields. Loaded via Fivetran every 12 hours.",
+      "columns": {},
+      "meta": {"owner": "data-engineering", "domain": "marketing", "freshness_sla_hours": 12}
+    },
+    "source.ecommerce_analytics.raw.products": {
+      "unique_id": "source.ecommerce_analytics.raw.products",
+      "name": "products",
+      "resource_type": "source",
+      "source_name": "raw",
+      "schema": "raw",
+      "database": "production",
+      "description": "Product catalog from the production database. Updated daily.",
+      "columns": {},
+      "meta": {"owner": "product-team", "domain": "product", "freshness_sla_hours": 24}
+    },
+    "source.ecommerce_analytics.raw.order_items": {
+      "unique_id": "source.ecommerce_analytics.raw.order_items",
+      "name": "order_items",
+      "resource_type": "source",
+      "source_name": "raw",
+      "schema": "raw",
+      "database": "production",
+      "description": "Order line items linking orders to products. Loaded alongside orders.",
+      "columns": {},
+      "meta": {"owner": "data-engineering", "domain": "finance", "freshness_sla_hours": 6}
+    },
+    "source.ecommerce_analytics.raw.payments": {
+      "unique_id": "source.ecommerce_analytics.raw.payments",
+      "name": "payments",
+      "resource_type": "source",
+      "source_name": "raw",
+      "schema": "raw",
+      "database": "production",
+      "description": "Payment transactions from Stripe webhook. Contains sensitive financial data. Loaded every 4 hours.",
+      "columns": {},
+      "meta": {"owner": "data-engineering", "domain": "finance", "freshness_sla_hours": 4}
+    },
+    "source.ecommerce_analytics.events.raw_events": {
+      "unique_id": "source.ecommerce_analytics.events.raw_events",
+      "name": "raw_events",
+      "resource_type": "source",
+      "source_name": "events",
+      "schema": "events",
+      "database": "analytics",
+      "description": "Raw user behavioral events from Segment. High-volume (~10M events/day). Loaded in real-time via Kafka.",
+      "columns": {},
+      "meta": {"owner": "product-analytics", "domain": "product", "freshness_sla_hours": 1}
+    }
+  }
+}
