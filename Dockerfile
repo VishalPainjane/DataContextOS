@@ -15,7 +15,7 @@ RUN pip install uv
 COPY pyproject.toml README.md ./
 
 # Install dependencies
-RUN uv pip install --system -e ".[prod]"
+RUN uv pip install --system -e ".[prod,free,observe]"
 
 # Copy source code
 COPY . .
