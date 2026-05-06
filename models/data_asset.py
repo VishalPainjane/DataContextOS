@@ -10,7 +10,7 @@ from __future__ import annotations
 from datetime import datetime
 from enum import Enum
 from typing import Optional
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 from pydantic import BaseModel, Field
 
@@ -61,7 +61,7 @@ class DataAsset(BaseModel):
     - API responses
     - MCP tool results
     """
-    id: UUID = Field(default_factory=uuid4)
+    id: str = Field(default_factory=lambda: str(uuid4()))
     asset_name: str = Field(description="Fully qualified name (e.g., 'analytics.orders')")
     asset_type: AssetType = Field(description="Type of data asset")
     description: str = Field(description="Human-readable description of the asset")
