@@ -19,7 +19,7 @@ services:
       retries: 5
 
   phoenix:
-    image: arizeai/phoenix:latest
+    image: arizephoenix/phoenix:latest
     container_name: datacontextos_phoenix
     ports:
       - "6006:6006" # UI
