@@ -1,0 +1,18 @@
+[
+  {
+    "query": "Who is the owner of the orders table?",
+    "expected_answer": "The orders table is owned by the data engineering team."
+  },
+  {
+    "query": "What are the downstream dependencies of stg_customers?",
+    "expected_answer": "The downstream dependencies are dim_customers and fct_orders."
+  },
+  {
+    "query": "Is the finance_analytics dashboard trustworthy?",
+    "expected_answer": "Yes, it has a high trust score due to good test coverage and freshness."
+  },
+  {
+    "query": "What does the 'total_amount' column in fact_sales represent?",
+    "expected_answer": "It represents the total sale amount including taxes and discounts."
+  }
+]
