@@ -1,0 +1,68 @@
+version: "3.8"
+
+services:
+  db:
+    image: ankane/pgvector:v0.5.1
+    container_name: datacontextos_db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-datacontextos}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  phoenix:
+    image: arizeai/phoenix:latest
+    container_name: datacontextos_phoenix
+    ports:
+      - "6006:6006" # UI
+      - "4317:4317" # OTLP gRPC
+    environment:
+      - PHOENIX_PORT=6006
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6006"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: datacontextos_api
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8000:8000" # REST API
+      - "8001:8001" # MCP Server
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-datacontextos}
+      - PHOENIX_COLLECTOR_ENDPOINT=http://phoenix:4317
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ENVIRONMENT=production
+    volumes:
+      - ./.env:/app/.env
+
+  dashboard:
+    build:
+      context: ./dashboard
+      dockerfile: Dockerfile
+    container_name: datacontextos_dashboard
+    depends_on:
+      - api
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://api:8000
+      - NODE_ENV=production
+
+volumes:
+  pgdata:
