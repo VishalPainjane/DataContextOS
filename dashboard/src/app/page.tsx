@@ -1,6 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import { buildApiUrl } from "../lib/api";
+import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
+import { Badge } from "../components/ui/badge";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "../components/ui/card";
+import { Search, Database, LayoutDashboard, Component, Link as LinkIcon, AlertCircle, Cpu, Network, MessageSquare } from "lucide-react";
 
 // Types matching the FastAPI response
 interface SearchResult {
@@ -27,9 +34,51 @@ interface QueryResponse {
 
 export default function Home() {
   const [query, setQuery] = useState("");
+  const [selectedDomain, setSelectedDomain] = useState<string | null>(null);
+  const [selectedAssetType, setSelectedAssetType] = useState<string | null>(null);
   const [response, setResponse] = useState<QueryResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [recentQueries, setRecentQueries] = useState<string[]>([]);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const domains = ["Finance", "Marketing", "Engineering", "Sales", "Product"];
+  const assetTypes = [
+    { label: "Table", value: "table" },
+    { label: "View", value: "view" },
+    { label: "Dashboard", value: "dashboard" },
+    { label: "Pipeline", value: "pipeline" },
+    { label: "Model", value: "model" },
+  ];
+  const suggestedQueries = [
+    "finance tables with freshness SLA under 6 hours",
+    "dashboards related to revenue",
+    "lineage for orders_raw",
+    "assets owned by data engineering",
+  ];
+
+  useEffect(() => {
+    const stored = window.localStorage.getItem("dcos.recentQueries");
+    if (stored) {
+      try {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setRecentQueries(JSON.parse(stored));
+      } catch {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setRecentQueries([]);
+      }
+    }
+
+    const handler = (event: KeyboardEvent) => {
+      if (event.key === "/" && !event.metaKey && !event.ctrlKey) {
+        event.preventDefault();
+        inputRef.current?.focus();
+      }
+    };
+
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,12 +89,17 @@ export default function Home() {
     setResponse(null);
     
     try {
-      const res = await fetch("http://localhost:8000/api/search", {
+      const res = await fetch(buildApiUrl("/api/search"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ query: query, top_k: 5 }),
+        body: JSON.stringify({ 
+          query: query, 
+          top_k: 5,
+          domain: selectedDomain,
+          asset_type: selectedAssetType,
+        }),
       });
       
       if (!res.ok) {
@@ -54,110 +108,268 @@ export default function Home() {
       
       const data: QueryResponse = await res.json();
       setResponse(data);
-    } catch (err: any) {
+      setRecentQueries((prev) => {
+        const next = [query, ...prev.filter((item) => item !== query)].slice(0, 5);
+        window.localStorage.setItem("dcos.recentQueries", JSON.stringify(next));
+        return next;
+      });
+    } catch (err) {
       console.error("Search failed:", err);
-      setError(err.message || "Failed to connect to API");
+      setError(err instanceof Error ? err.message : "Failed to connect to API");
     } finally {
       setIsLoading(false);
     }
   };
 
+  const getAssetIcon = (type: string) => {
+    switch (type.toLowerCase()) {
+      case 'table': return <Database className="w-4 h-4 text-blue-500" />;
+      case 'dashboard': return <LayoutDashboard className="w-4 h-4 text-purple-500" />;
+      case 'pipeline': return <Network className="w-4 h-4 text-green-500" />;
+      case 'model': return <Cpu className="w-4 h-4 text-orange-500" />;
+      default: return <Component className="w-4 h-4 text-gray-500" />;
+    }
+  };
+
+  const getTrustBadgeVariant = (label: string) => {
+    switch (label.toLowerCase()) {
+      case 'trusted': return 'default';
+      case 'needs review': return 'secondary';
+      case 'deprecated': return 'destructive';
+      default: return 'outline';
+    }
+  };
+
   return (
-    <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '40px', marginTop: response || isLoading || error ? '20px' : '15vh', transition: 'all 0.5s ease' }}>
-      
-      <div style={{ textAlign: 'center', maxWidth: '700px' }}>
-        <h1 style={{ fontSize: '3rem', fontWeight: 800, marginBottom: '16px', lineHeight: 1.2 }}>
-          Ask your <span className="gradient-text">Data Stack</span> anything.
+    <div className="flex flex-col gap-10 animate-in fade-in duration-500 pb-12">
+      <div className="max-w-3xl space-y-4 pt-4">
+        <h1 className="font-serif text-4xl font-extrabold tracking-tight lg:text-6xl text-foreground">
+          Search Metadata
         </h1>
-        <p style={{ color: 'var(--text-secondary)', fontSize: '1.1rem', lineHeight: 1.6 }}>
-          Agentic RAG powered search for tables, dashboards, lineage, and governance metrics.
+        <p className="text-xl text-muted-foreground leading-relaxed">
+          Ask questions about your data stack in natural language.
         </p>
       </div>
 
-      <form onSubmit={handleSearch} style={{ width: '100%', maxWidth: '650px', position: 'relative' }}>
-        <input 
-          type="text" 
-          className="input-glass" 
-          placeholder="e.g. Who owns the orders table? What feeds into the revenue dashboard?"
-          style={{ padding: '20px 24px', fontSize: '1.1rem', borderRadius: '12px', paddingRight: '120px' }}
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-        />
-        <button 
-          type="submit" 
-          className="btn-primary"
-          style={{ position: 'absolute', right: '8px', top: '8px', bottom: '8px', padding: '0 24px' }}
-        >
-          {isLoading ? 'Searching...' : 'Search'}
-        </button>
-      </form>
+      <div className="flex flex-col gap-8 max-w-4xl">
+        <form onSubmit={handleSearch} className="relative w-full shadow-elegant rounded-2xl bg-card border border-border/60 hover:border-primary/30 transition-all duration-300 group">
+          <div className="absolute inset-y-0 left-5 flex items-center pointer-events-none">
+            <Search className="h-6 w-6 text-muted-foreground group-focus-within:text-primary transition-colors" />
+          </div>
+          <Input
+            type="text"
+            placeholder="e.g. show me all tables related to revenue in the finance domain"
+            className="h-16 pl-14 pr-32 text-[1.05rem] rounded-2xl border-none bg-transparent shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 placeholder:text-muted-foreground/70"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            ref={inputRef}
+          />
+          <Button
+            type="submit"
+            size="lg"
+            className="absolute right-2 top-2 bottom-2 rounded-xl px-6 font-semibold shadow-sm"
+            disabled={isLoading}
+          >
+            {isLoading ? 'Searching...' : 'Search'}
+          </Button>
+        </form>
+
+        <div className="flex flex-col gap-5">
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="text-sm font-semibold text-muted-foreground uppercase tracking-wider w-20">Domain</span>
+            {domains.map(domain => (
+              <button
+                key={domain}
+                type="button"
+                onClick={() => setSelectedDomain(selectedDomain === domain ? null : domain)}
+                className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all ${
+                  selectedDomain === domain 
+                    ? 'bg-foreground text-background shadow-md' 
+                    : 'bg-card border border-border text-muted-foreground hover:bg-muted hover:text-foreground'
+                }`}
+              >
+                {domain}
+              </button>
+            ))}
+            {selectedDomain && (
+              <button type="button" onClick={() => setSelectedDomain(null)} className="text-xs text-destructive hover:underline px-2">
+                Clear
+              </button>
+            )}
+          </div>
+          
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="text-sm font-semibold text-muted-foreground uppercase tracking-wider w-20">Type</span>
+            {assetTypes.map(type => (
+              <button
+                key={type.value}
+                type="button"
+                onClick={() => setSelectedAssetType(selectedAssetType === type.value ? null : type.value)}
+                className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all ${
+                  selectedAssetType === type.value 
+                    ? 'bg-foreground text-background shadow-md' 
+                    : 'bg-card border border-border text-muted-foreground hover:bg-muted hover:text-foreground'
+                }`}
+              >
+                {type.label}
+              </button>
+            ))}
+            {selectedAssetType && (
+              <button type="button" onClick={() => setSelectedAssetType(null)} className="text-xs text-destructive hover:underline px-2">
+                Clear
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="space-y-3 pt-2">
+          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Suggested queries</h3>
+          <div className="flex flex-wrap gap-2">
+            {suggestedQueries.map((prompt) => (
+              <button
+                key={prompt}
+                type="button"
+                onClick={() => setQuery(prompt)}
+                className="px-3 py-1.5 rounded-lg bg-muted/50 hover:bg-muted text-sm text-foreground/80 transition-colors border border-border/40"
+              >
+                {prompt}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {recentQueries.length > 0 && (
+          <div className="space-y-3">
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Recent searches</h3>
+            <div className="flex flex-wrap gap-2">
+              {recentQueries.map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  onClick={() => setQuery(item)}
+                  className="px-3 py-1.5 rounded-lg bg-card hover:bg-muted text-sm text-muted-foreground transition-colors border border-dashed border-border"
+                >
+                  {item}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
 
       {error && (
-        <div className="glass-panel animate-fade-in" style={{ width: '100%', padding: '24px', borderColor: 'var(--danger)', color: 'var(--danger)' }}>
-          <h3 style={{ fontSize: '1.1rem', marginBottom: '8px' }}>Connection Error</h3>
-          <p>{error}</p>
-          <p style={{ fontSize: '0.9rem', marginTop: '12px', opacity: 0.8 }}>Ensure the FastAPI backend is running on http://localhost:8000.</p>
-        </div>
+        <Card className="border-destructive/50 bg-destructive/5">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-destructive flex items-center gap-2 text-lg">
+              <AlertCircle className="h-5 w-5" /> Connection Error
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">{error}</p>
+            <p className="text-xs text-muted-foreground/70 mt-2">Ensure the FastAPI backend is running.</p>
+          </CardContent>
+        </Card>
       )}
 
       {response && (
-        <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '20px', marginTop: '20px' }} className="animate-fade-in">
+        <div className="flex flex-col gap-8 animate-in slide-in-from-bottom-4 duration-500 max-w-6xl mx-auto w-full">
           
-          <div className="glass-panel" style={{ padding: '24px', marginBottom: '10px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-              <h3 style={{ fontSize: '1.1rem', color: 'var(--text-secondary)' }}>✨ AI Synthesis</h3>
-              <span className="badge" style={{ background: 'rgba(99, 102, 241, 0.2)', color: 'var(--accent-primary)' }}>
-                Confidence: {(response.confidence * 100).toFixed(0)}%
-              </span>
+          <Card className="border-primary/40 shadow-glow overflow-hidden relative bg-card/60 backdrop-blur-md">
+            <div className="absolute top-0 left-0 w-1 h-full bg-primary shadow-glow" />
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <MessageSquare className="h-5 w-5 text-primary text-glow" /> AI Synthesis
+                </CardTitle>
+                <Badge variant="secondary" className="bg-primary/20 text-primary border border-primary/50 shadow-glow font-medium">
+                  Confidence: {(response.confidence * 100).toFixed(0)}%
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <p className="text-base leading-relaxed whitespace-pre-wrap text-foreground/90">
+                {response.answer}
+              </p>
+              
+              {response.citations && response.citations.length > 0 && (
+                <div className="mt-6 pt-4 border-t border-border/40 flex items-start gap-2 text-sm text-muted-foreground">
+                  <LinkIcon className="h-4 w-4 mt-0.5 shrink-0" />
+                  <div>
+                    <span className="font-semibold text-foreground/80 mr-2">Sources:</span>
+                    {response.citations.join(', ')}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xl font-bold tracking-tight text-foreground">
+                Results <Badge variant="secondary" className="ml-2 bg-muted/60 border border-border">{response.results.length}</Badge>
+              </h3>
+              <span className="text-sm text-muted-foreground font-medium">Sorted by Relevance</span>
             </div>
-            <p style={{ lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
-              {response.answer}
-            </p>
             
-            {response.citations && response.citations.length > 0 && (
-              <div style={{ marginTop: '16px', fontSize: '0.85rem', color: 'var(--text-tertiary)' }}>
-                <strong>Sources:</strong> {response.citations.join(', ')}
-              </div>
-            )}
-          </div>
-
-          <h3 style={{ fontSize: '1.2rem', fontWeight: 600, borderBottom: '1px solid var(--border-subtle)', paddingBottom: '12px' }}>
-            Retrieved Assets ({response.results.length})
-          </h3>
-          
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '20px' }}>
-            {response.results.map((result, idx) => (
-              <div key={result.asset_id} className="glass-panel animate-fade-in" style={{ padding: '24px', animationDelay: `${idx * 0.1}s` }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
-                  <div style={{ fontWeight: 600, fontSize: '1.1rem', wordBreak: 'break-all' }}>{result.asset_name}</div>
-                  {result.trust_score ? (
-                    <span className={`badge badge-${result.trust_score.label.toLowerCase()}`}>{result.trust_score.label}</span>
-                  ) : (
-                    <span className="badge" style={{ background: 'rgba(255,255,255,0.1)', color: 'var(--text-secondary)' }}>UNKNOWN</span>
-                  )}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {response.results.map((result, idx) => (
+                <Card key={result.asset_id} className="flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-500 hover:shadow-glow transition-all border-border/40 hover:border-primary/50 bg-card/40 backdrop-blur-sm" style={{ animationDelay: `${idx * 50}ms` }}>
+                  <CardHeader className="pb-3">
+                    <div className="flex justify-between items-start gap-4 mb-2">
+                      <Link href={`/assets/${result.asset_id}`} className="font-semibold text-lg line-clamp-1 hover:text-primary transition-colors" title={result.asset_name}>
+                        {result.asset_name}
+                      </Link>
+                      {result.trust_score ? (
+                        <Badge variant={getTrustBadgeVariant(result.trust_score.label)} className="shrink-0 whitespace-nowrap">
+                          {result.trust_score.label}
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="shrink-0 text-muted-foreground">UNKNOWN</Badge>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Badge variant="secondary" className="flex items-center gap-1.5 uppercase text-[10px] tracking-wider py-0">
+                        {getAssetIcon(result.asset_type)}
+                        {result.asset_type}
+                      </Badge>
+                      <Badge variant="outline" className="uppercase text-[10px] tracking-wider py-0 text-muted-foreground">
+                        {result.domain || 'General'}
+                      </Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="pb-4 flex-1">
+                    <p className="text-sm text-muted-foreground line-clamp-3">
+                      {result.description}
+                    </p>
+                  </CardContent>
+                  <CardFooter className="pt-4 border-t border-border flex items-center justify-between mt-auto bg-muted/20">
+                    <div className="text-xs text-muted-foreground truncate pr-2">
+                      Owner: <span className="font-medium text-foreground">{result.owner || 'Unassigned'}</span>
+                    </div>
+                    <div className="flex gap-2 shrink-0">
+                      <Link href={`/lineage?asset=${result.asset_id}`}>
+                        <Button variant="outline" size="sm" className="h-8">
+                          Lineage
+                        </Button>
+                      </Link>
+                      <Link href={`/assets/${result.asset_id}`}>
+                        <Button size="sm" className="h-8">
+                          Details
+                        </Button>
+                      </Link>
+                    </div>
+                  </CardFooter>
+                </Card>
+              ))}
+              
+              {response.results.length === 0 && (
+                <div className="col-span-full flex flex-col items-center justify-center p-12 text-center rounded-xl border border-dashed border-border bg-card/30">
+                  <Database className="h-10 w-10 text-muted-foreground mb-4" />
+                  <p className="text-lg font-medium text-foreground">No precise asset matches found.</p>
+                  <p className="text-sm text-muted-foreground mt-1">Try broadening your search or checking the domain filters.</p>
                 </div>
-                
-                <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
-                  <span style={{ fontSize: '0.8rem', background: 'rgba(255,255,255,0.1)', padding: '2px 8px', borderRadius: '10px', color: 'var(--text-tertiary)' }}>{result.asset_type}</span>
-                  <span style={{ fontSize: '0.8rem', background: 'rgba(255,255,255,0.1)', padding: '2px 8px', borderRadius: '10px', color: 'var(--text-tertiary)' }}>{result.domain || 'general'}</span>
-                </div>
-
-                <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', lineHeight: 1.5, marginBottom: '20px' }}>
-                  {result.description}
-                </p>
-
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border-subtle)', paddingTop: '16px', fontSize: '0.9rem' }}>
-                  <span style={{ color: 'var(--text-tertiary)' }}>Owner: <strong style={{color: 'var(--text-primary)'}}>{result.owner || 'Unassigned'}</strong></span>
-                  <button style={{ background: 'transparent', border: '1px solid var(--border-strong)', color: 'white', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer' }}>View Lineage</button>
-                </div>
-              </div>
-            ))}
-            
-            {response.results.length === 0 && (
-              <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '40px', color: 'var(--text-tertiary)' }}>
-                No precise asset matches found in the index.
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </div>
       )}
