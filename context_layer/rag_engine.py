@@ -35,7 +35,13 @@ class RagEngine:
         self.trust = TrustAgent()
         self.synthesizer = SynthesisAgent()
 
-    async def run(self, query: str) -> SearchResponse:
+    async def run(
+        self,
+        query: str,
+        top_k: int = 5,
+        domain: Optional[str] = None,
+        asset_type: Optional[str] = None,
+    ) -> SearchResponse:
         """Run the full RAG pipeline for a query."""
         state: ContextState = {
             "query": query,
@@ -50,7 +56,12 @@ class RagEngine:
         state["route"] = await self.router.route_query(query)
         
         # 2. Retrieval (We always do some basic retrieval)
-        state["context"] = await self.retriever.retrieve(query)
+        state["context"] = await self.retriever.retrieve(
+            query,
+            top_k=top_k,
+            domain=domain,
+            asset_type=asset_type,
+        )
 
         # 3. Specific Agent Actions based on route
         if state["route"] == QueryRoute.LINEAGE:

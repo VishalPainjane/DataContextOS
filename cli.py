@@ -34,9 +34,14 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 @app.command()
 def version() -> None:
     """Print the current DataContextOS version."""
-    from datacontextos import __version__
+    import importlib.metadata
 
-    console.print(f"[bold cyan]DataContextOS[/] v{__version__}")
+    try:
+        ver = importlib.metadata.version("datacontextos")
+    except importlib.metadata.PackageNotFoundError:
+        ver = "0.1.0"
+
+    console.print(f"[bold cyan]DataContextOS[/] v{ver}")
 
 
 @app.command()
@@ -110,59 +115,85 @@ def ingest(
 
 
 @app.command()
+def api(
+    host: str = typer.Option(None, help="Host to bind to"),
+    port: int = typer.Option(None, help="Port to bind to"),
+) -> None:
+    """Start the DataContextOS FastAPI server."""
+    from config import settings
+    import uvicorn
+
+    h = host or settings.api_host
+    p = port or settings.api_port
+    
+    console.print(f"[cyan]►[/] Starting API server on [bold]{h}:{p}[/]...")
+    uvicorn.run("api.main:app", host=h, port=p, reload=settings.debug)
+
+
+@app.command()
+def mcp(
+    host: str = typer.Option(None, help="Host to bind to"),
+    port: int = typer.Option(None, help="Port to bind to"),
+) -> None:
+    """Start the DataContextOS MCP server."""
+    from config import settings
+    from mcp_server.server import mcp as mcp_app
+
+    h = host or settings.mcp_host
+    p = port or settings.mcp_port
+    
+    console.print(f"[cyan]►[/] Starting MCP server on [bold]{h}:{p}[/]...")
+    mcp_app.run()
+
+
+@app.command()
 def search(
     query: str = typer.Argument(..., help="Natural language query to search for"),
-    top_k: int = typer.Option(5, "--top-k", "-k", help="Number of results to return"),
-    domain: Optional[str] = typer.Option(None, "--domain", "-d", help="Filter by domain"),
 ) -> None:
-    """Search for data assets using natural language."""
-    console.print(f'[cyan]►[/] Searching: "[bold]{query}[/]"...')
+    """Search for data assets using the Agentic RAG Engine."""
+    console.print(f'[cyan]►[/] Asking AI: "[bold]{query}[/]"...')
 
     async def _run() -> None:
-        from sqlalchemy import select
-
-        from database.engine import get_session_factory, init_db
-        from database.tables import AssetRecord
+        from context_layer.rag_engine import RagEngine
+        from database.engine import init_db
 
         await init_db()
-        factory = get_session_factory()
+        engine = RagEngine()
+        response = await engine.run(query)
 
-        async with factory() as session:
-            stmt = select(AssetRecord).limit(top_k * 10)
-            if domain:
-                stmt = stmt.where(AssetRecord.domain == domain)
-            result = await session.execute(stmt)
-            records = result.scalars().all()
-
-        if not records:
+        if not response.results:
             console.print("[yellow]No assets found. Run [bold]dcos ingest[/] first.[/]")
             return
 
-        table = Table(title=f'Search Results for "{query}"', show_header=True)
-        table.add_column("#", style="dim", width=4)
+        # 1. Show AI Synthesis
+        console.print("\n[bold]✨ AI Synthesis[/]")
+        console.print(f"{response.answer}")
+        console.print(f"[dim]Confidence: {int(response.confidence * 100)}% | Sources: {', '.join(response.citations)}[/]")
+
+        # 2. Show Retrieved Assets
+        table = Table(title=f"Retrieved Assets", show_header=True, box=None)
         table.add_column("Asset Name", style="cyan")
         table.add_column("Type", style="green")
         table.add_column("Domain", style="yellow")
-        table.add_column("Description", style="white", max_width=60)
+        table.add_column("Owner", style="magenta")
+        table.add_column("Score", style="white")
 
-        # Simple keyword filter as a placeholder for vector search
-        query_lower = query.lower()
-        matches = [
-            r for r in records
-            if query_lower in r.asset_name.lower()
-            or query_lower in (r.description or "").lower()
-            or query_lower in (r.domain or "").lower()
-        ][:top_k]
-
-        for i, rec in enumerate(matches or records[:top_k], start=1):
+        for res in response.results:
+            # Format score: show as % if in [0,1], otherwise as raw float
+            if 0 <= res.relevance_score <= 1.0:
+                score_str = f"{int(res.relevance_score * 100)}%"
+            else:
+                score_str = f"{res.relevance_score:.2f}"
+                
             table.add_row(
-                str(i),
-                rec.asset_name,
-                rec.asset_type,
-                rec.domain or "—",
-                (rec.description or "")[:80],
+                res.asset_name,
+                res.asset_type,
+                res.domain or "—",
+                res.owner or "—",
+                score_str
             )
 
+        console.print("\n")
         console.print(table)
 
     try:

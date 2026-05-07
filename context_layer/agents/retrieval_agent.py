@@ -18,8 +18,19 @@ class RetrievalAgent:
     def __init__(self) -> None:
         self.store = VectorStoreWrapper()
 
-    async def retrieve(self, query: str, top_k: int = 5) -> List[SearchResult]:
+    async def retrieve(
+        self,
+        query: str,
+        top_k: int = 5,
+        domain: str | None = None,
+        asset_type: str | None = None,
+    ) -> List[SearchResult]:
         """Retrieve relevant assets for the query."""
         logger.info(f"Retrieving context for query: {query}")
-        results = await self.store.search(query=query, top_k=top_k)
+        results = await self.store.search(
+            query=query,
+            top_k=top_k,
+            domain=domain,
+            asset_type=asset_type,
+        )
         return results

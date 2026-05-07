@@ -13,7 +13,12 @@ router = APIRouter(tags=["Search"])
 async def search_assets(request: QueryRequest):
     """Search for data assets using the Agentic RAG Engine."""
     engine = RagEngine()
-    response = await engine.run(request.query)
+    response = await engine.run(
+        request.query,
+        top_k=request.top_k,
+        domain=request.domain,
+        asset_type=request.asset_type,
+    )
     
     return QueryResponse(
         query=response.query,

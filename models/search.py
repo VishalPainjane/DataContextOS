@@ -20,7 +20,7 @@ class SearchResult(BaseModel):
     domain: Optional[str] = None
     owner: Optional[str] = None
     relevance_score: float = Field(
-        ge=0.0, le=1.0, description="Semantic similarity score"
+        description="Semantic similarity score or cross-encoder logit"
     )
     trust_score: Optional[TrustScore] = None
     source_system: str = "unknown"

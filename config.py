@@ -45,6 +45,10 @@ class Settings(BaseSettings):
         default="gemini", alias="DCOS_LLM_PROVIDER"
     )
     llm_model: str = Field(default="gemini-2.0-flash", alias="DCOS_LLM_MODEL")
+    llm_fallback_provider: Literal["anthropic", "openai", "gemini", "ollama", "none"] = Field(
+        default="ollama", alias="DCOS_LLM_FALLBACK_PROVIDER"
+    )
+    llm_fallback_model: str = Field(default="llama3", alias="DCOS_LLM_FALLBACK_MODEL")
     llm_temperature: float = Field(default=0.1, alias="DCOS_LLM_TEMPERATURE")
     llm_max_tokens: int = Field(default=4096, alias="DCOS_LLM_MAX_TOKENS")
 

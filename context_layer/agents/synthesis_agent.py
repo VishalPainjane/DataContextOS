@@ -29,10 +29,20 @@ class SynthesisAgent:
     async def synthesize(self, query: str, context: List[SearchResult]) -> SynthesisResult:
         """Synthesize a natural language answer from the context."""
         
-        context_str = "\n\n".join([
-            f"Asset: {c.asset_name}\nType: {c.asset_type}\nDesc: {c.description}\nSnippet: {c.snippet}"
-            for c in context
-        ])
+        # Basic context truncation to avoid token limits (very rough estimate)
+        # Assuming ~4 characters per token, 6000 tokens ~ 24000 characters
+        max_chars = 20000 
+        current_chars = 0
+        limited_context = []
+        
+        for c in context:
+            entry = f"Asset: {c.asset_name}\nType: {c.asset_type}\nDesc: {c.description}\nSnippet: {c.snippet}"
+            if current_chars + len(entry) > max_chars:
+                break
+            limited_context.append(entry)
+            current_chars += len(entry)
+
+        context_str = "\n\n".join(limited_context)
         
         prompt = (
             f"User Query: {query}\n\n"
@@ -49,8 +59,16 @@ class SynthesisAgent:
             return result
         except Exception as e:
             logger.error(f"Synthesis failed: {e}")
+            
+            # Fallback: Return a summary of the top results if synthesis fails
+            top_results = ", ".join([c.asset_name for c in context[:3]])
+            answer = (
+                "I'm sorry, I encountered an error while synthesizing a detailed answer. "
+                f"However, I found some relevant assets that might help: {top_results}. "
+                "Please see the search results below for more details."
+            )
             return SynthesisResult(
-                answer="Failed to synthesize an answer due to an internal error.",
-                citations=[],
-                confidence=0.0
+                answer=answer,
+                citations=[c.asset_name for c in context[:3]],
+                confidence=0.1
             )

@@ -13,13 +13,15 @@ from sqlalchemy import select, text
 
 from config import settings
 from database.engine import get_session_factory, init_db
-from database.tables import AssetRecord, LineageEdgeRecord, EmbeddingRecord
+from database.tables import AssetRecord, LineageEdgeRecord, EmbeddingRecord, TrustScoreRecord
 from ingestion.connectors.dbt_connector import DbtConnector
 from ingestion.connectors.markdown_connector import MarkdownConnector
 from ingestion.connectors.openapi_connector import OpenApiConnector
 from models.data_asset import DataAsset
 from models.lineage import LineageEdge
 from providers.embeddings import get_embedding_provider
+from trust.score_engine import TrustScoreEngine
+from context_layer.index.pgvector_store import VectorStoreWrapper
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +64,9 @@ class IngestionPipeline:
 
         # Step 3: Generate embeddings and store
         await self._embed_and_store()
+
+        # Step 4: Compute initial trust scores
+        await self._compute_trust_scores()
 
         summary = {
             "assets_ingested": len(self.assets),
@@ -112,9 +117,10 @@ class IngestionPipeline:
         logger.info(f"After dedup: {len(self.assets)} unique assets")
 
     async def _embed_and_store(self) -> None:
-        """Generate embeddings and store everything in the database."""
+        """Generate embeddings and store everything in the database and vector store."""
         embedding_provider = get_embedding_provider()
         session_factory = get_session_factory()
+        vector_store = VectorStoreWrapper()
 
         # Generate embedding texts
         texts = [asset.to_embedding_text() for asset in self.assets]
@@ -185,11 +191,41 @@ class IngestionPipeline:
                     )
                     session.add(emb_record)
 
+        # 2. Store in Vector Store (Chroma)
+        await vector_store.add_assets(self.assets, embeddings)
+
         logger.info(
             f"Stored {len(self.assets)} assets, "
             f"{len(self.lineage_edges)} edges, "
             f"{len(embeddings)} embeddings"
         )
+
+    async def _compute_trust_scores(self) -> None:
+        """Compute and store initial trust scores for all ingested assets."""
+        logger.info(f"Computing trust scores for {len(self.assets)} assets...")
+        engine = TrustScoreEngine()
+        session_factory = get_session_factory()
+
+        async with session_factory() as session:
+            async with session.begin():
+                for asset in self.assets:
+                    trust_score = engine.compute_from_asset(asset)
+                    
+                    record = TrustScoreRecord(
+                        asset_id=str(asset.id),
+                        score=trust_score.score,
+                        label=trust_score.label.value,
+                        documentation_score=trust_score.signals.documentation,
+                        freshness_score=trust_score.signals.freshness,
+                        ownership_score=trust_score.signals.ownership,
+                        test_coverage_score=trust_score.signals.test_coverage,
+                        usage_score=trust_score.signals.usage,
+                        explanation=trust_score.explanation,
+                        computed_at=trust_score.computed_at
+                    )
+                    session.add(record)
+                    
+        logger.info(f"Trust scores computed and stored.")
 
 
 async def run_ingestion(source_dir: str = "sample_data") -> dict:

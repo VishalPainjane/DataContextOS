@@ -10,7 +10,9 @@ from __future__ import annotations
 
 import json
 import logging
+import hashlib
 from abc import ABC, abstractmethod
+from pathlib import Path
 from typing import Any, TypeVar
 
 from pydantic import BaseModel
@@ -79,12 +81,19 @@ class GeminiProvider(LLMProvider):
         if system_prompt:
             config.system_instruction = system_prompt
 
-        response = self.client.models.generate_content(
-            model=settings.llm_model,
-            contents=contents,
-            config=config,
-        )
-        return response.text or ""
+        try:
+            response = self.client.models.generate_content(
+                model=settings.llm_model,
+                contents=contents,
+                config=config,
+            )
+            return response.text or ""
+        except Exception as e:
+            if "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e):
+                logger.warning(f"Gemini API quota exhausted: {e}")
+                raise
+            logger.error(f"Gemini generation failed: {e}")
+            raise
 
 
 class OllamaProvider(LLMProvider):
@@ -160,33 +169,108 @@ class OpenAIProvider(LLMProvider):
         return response.choices[0].message.content or ""
 
 
+class FallbackProvider(LLMProvider):
+    """A provider that tries a primary provider and falls back to another on failure."""
+
+    def __init__(self, primary: LLMProvider, secondary: LLMProvider) -> None:
+        self.primary = primary
+        self.secondary = secondary
+
+    async def generate(self, prompt: str, system_prompt: str = "", **kwargs: Any) -> str:
+        try:
+            return await self.primary.generate(prompt, system_prompt, **kwargs)
+        except Exception as e:
+            logger.warning(f"Primary LLM failed, falling back to secondary: {e}")
+            return await self.secondary.generate(prompt, system_prompt, **kwargs)
+
+    async def generate_structured(
+        self, prompt: str, schema: type[T], system_prompt: str = "", **kwargs: Any
+    ) -> T:
+        try:
+            return await self.primary.generate_structured(prompt, schema, system_prompt, **kwargs)
+        except Exception as e:
+            logger.warning(f"Primary LLM failed (structured), falling back to secondary: {e}")
+            return await self.secondary.generate_structured(prompt, schema, system_prompt, **kwargs)
+
+
+class CachedLLMProvider(LLMProvider):
+    """A provider that caches responses to disk."""
+
+    def __init__(self, base: LLMProvider, cache_dir: str = "./data/llm_cache") -> None:
+        self.base = base
+        self.cache_dir = Path(cache_dir)
+        self.cache_dir.mkdir(parents=True, exist_ok=True)
+
+    def _get_cache_key(self, prompt: str, system_prompt: str, **kwargs: Any) -> str:
+        data = f"{prompt}:{system_prompt}:{json.dumps(kwargs, sort_keys=True)}"
+        return hashlib.md5(data.encode()).hexdigest()
+
+    async def generate(self, prompt: str, system_prompt: str = "", **kwargs: Any) -> str:
+        key = self._get_cache_key(prompt, system_prompt, **kwargs)
+        cache_file = self.cache_dir / f"{key}.txt"
+
+        if cache_file.exists():
+            logger.debug("LLM cache hit")
+            return cache_file.read_text(encoding="utf-8")
+
+        response = await self.base.generate(prompt, system_prompt, **kwargs)
+        cache_file.write_text(response, encoding="utf-8")
+        return response
+
+    async def generate_structured(
+        self, prompt: str, schema: type[T], system_prompt: str = "", **kwargs: Any
+    ) -> T:
+        key = self._get_cache_key(prompt, system_prompt, schema=schema.__name__, **kwargs)
+        cache_file = self.cache_dir / f"{key}.json"
+
+        if cache_file.exists():
+            logger.debug("LLM structured cache hit")
+            return schema.model_validate_json(cache_file.read_text(encoding="utf-8"))
+
+        result = await self.base.generate_structured(prompt, schema, system_prompt, **kwargs)
+        cache_file.write_text(result.model_dump_json(), encoding="utf-8")
+        return result
+
+
 # ── Factory ──────────────────────────────────────────────────────
 
 _provider_cache: LLMProvider | None = None
 
 
+def _create_provider(name: str) -> LLMProvider:
+    """Helper to create a specific provider instance."""
+    if name == "gemini":
+        return GeminiProvider()
+    elif name == "ollama":
+        return OllamaProvider()
+    elif name == "anthropic":
+        return AnthropicProvider()
+    elif name == "openai":
+        return OpenAIProvider()
+    else:
+        raise ValueError(f"Unknown LLM provider: {name}")
+
+
 def get_llm_provider() -> LLMProvider:
     """
-    Get the configured LLM provider.
-    
-    Reads DCOS_LLM_PROVIDER from settings and returns
-    the appropriate provider instance.
+    Get the configured LLM provider with optional fallback and caching.
     """
     global _provider_cache
     if _provider_cache is not None:
         return _provider_cache
 
-    match settings.llm_provider:
-        case "gemini":
-            _provider_cache = GeminiProvider()
-        case "ollama":
-            _provider_cache = OllamaProvider()
-        case "anthropic":
-            _provider_cache = AnthropicProvider()
-        case "openai":
-            _provider_cache = OpenAIProvider()
-        case _:
-            raise ValueError(f"Unknown LLM provider: {settings.llm_provider}")
+    primary = _create_provider(settings.llm_provider)
+    
+    if settings.llm_fallback_provider and settings.llm_fallback_provider != "none":
+        secondary = _create_provider(settings.llm_fallback_provider)
+        provider = FallbackProvider(primary, secondary)
+        logger.info(
+            f"LLM initialized with fallback: {settings.llm_provider} -> {settings.llm_fallback_provider}"
+        )
+    else:
+        provider = primary
+        logger.info(f"LLM provider initialized: {settings.llm_provider} ({settings.llm_model})")
 
-    logger.info(f"LLM provider initialized: {settings.llm_provider} ({settings.llm_model})")
+    # Wrap in cache
+    _provider_cache = CachedLLMProvider(provider)
     return _provider_cache

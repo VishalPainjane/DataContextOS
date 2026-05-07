@@ -49,11 +49,20 @@ class HuggingFaceEmbeddingProvider(EmbeddingProvider):
     def __init__(self) -> None:
         try:
             from sentence_transformers import SentenceTransformer
-            self.model = SentenceTransformer(settings.embedding_model)
-            self._dims = self.model.get_sentence_embedding_dimension()
-        except ImportError:
+            import torch
+            
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+            if device == "cpu":
+                # Check for Mac Silicon
+                if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+                    device = "mps"
+            
+            logger.info(f"Initializing HuggingFace model on {device}")
+            self.model = SentenceTransformer(settings.embedding_model, device=device)
+            self._dims = self.model.get_embedding_dimension()
+        except ImportError as e:
             raise ImportError(
-                "Install sentence-transformers: pip install sentence-transformers"
+                f"Failed to import sentence_transformers (is it fully installed?): {e}"
             )
 
     @property
