@@ -3,11 +3,11 @@
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { buildApiUrl } from "../../../lib/api";
-import { Button } from "../../../components/ui/button";
-import { Input } from "../../../components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../../../components/ui/card";
-import { Badge } from "../../../components/ui/badge";
+import { buildApiUrl } from "@/lib/api";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Sparkles, Key, GitMerge, FileText, CheckCircle2, AlertTriangle, ShieldCheck, Database } from "lucide-react";
 
 interface Column {
