@@ -14,12 +14,14 @@ DataContextOS allows you to query your enterprise data assets — their meaning,
 
 ## Getting Started
 
+For a full local runbook, see [docs/USAGE.md](docs/USAGE.md).
+
 ### 1. Setup Environment
-```bash
+```powershell
 python -m venv .venv
-source .venv/bin/activate
-pip install -e ".[dev,test]"
-cp .env.example .env
+.\.venv\Scripts\Activate.ps1
+pip install -e ".[dev,test,free,prod]"
+copy .env.example .env
 ```
 
 ### 2. Ingest Data
