@@ -2,7 +2,7 @@
   <img src="docs/image.png" alt="DataContextOS Banner" width="800" style="border-radius: 12px;" />
 </div>
 
-# DataContextOS 🧠
+# DataContextOS
 
 [![Python Version](https://img.shields.io/badge/python-3.11+-blue.svg)](https://python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.109+-green.svg)](https://fastapi.tiangolo.com)
@@ -12,13 +12,13 @@
 > **An AI-Native Metadata Intelligence Platform powering your enterprise data stack with Agentic RAG, Model Context Protocol (MCP), and automated Trust Scoring.**
 
 [Documentation](./docs/USAGE.md) •
-[Features](#-key-features) •
-[Getting Started](#-getting-started) •
-[Architecture](#-architecture)
+[Features](#key-features) •
+[Getting Started](#getting-started) •
+[Architecture](#architecture)
 
 ---
 
-## 📖 Overview
+## Overview
 
 **DataContextOS** transforms your fragmented data catalog into an intelligent, conversational knowledge graph. By combining advanced **Agentic RAG**, automated **Lineage Traversal**, and composite **Trust Scoring**, it allows data teams, engineers, and AI agents to query enterprise data assets—understanding their meaning, origins, ownership, and quality—entirely through natural language.
 
@@ -26,20 +26,20 @@ Whether you run it fully locally at zero-cost or scale it using premium APIs, Da
 
 ---
 
-## ✨ Key Features
+## Key Features
 
-- 🤖 **Agentic RAG Engine**: A sophisticated multi-agent workflow (built on LangGraph principles) that intelligently routes queries, retrieves semantic context, traverses lineage, and synthesizes answers.
-- 🔌 **Model Context Protocol (MCP)**: Native MCP server integration allows external AI assistants (like Anthropic's Claude) to seamlessly interact with your enterprise data catalog directly from your IDE.
-- 🛡️ **Automated Trust Scoring**: Empirically evaluate the health of your assets with composite scores based on documentation quality, data freshness, active ownership, test coverage, and historical usage.
-- 🔄 **Universal Ingestion**: Pre-built connectors parse and ingest metadata from `dbt` manifests, SQL databases, OpenAPI specifications, and markdown documentation.
-- 🌓 **Dual-Mode Architecture**: 
+- **Agentic RAG Engine**: A sophisticated multi-agent workflow (built on LangGraph principles) that intelligently routes queries, retrieves semantic context, traverses lineage, and synthesizes answers.
+- **Model Context Protocol (MCP)**: Native MCP server integration allows external AI assistants (like Anthropic's Claude) to seamlessly interact with your enterprise data catalog directly from your IDE.
+- **Automated Trust Scoring**: Empirically evaluate the health of your assets with composite scores based on documentation quality, data freshness, active ownership, test coverage, and historical usage.
+- **Universal Ingestion**: Pre-built connectors parse and ingest metadata from `dbt` manifests, SQL databases, OpenAPI specifications, and markdown documentation.
+- **Dual-Mode Architecture**: 
   - **Free/Local Mode**: Run entirely locally with zero cost using `Ollama`, `Gemini`, `HuggingFace`, and `ChromaDB`.
   - **Production Mode**: Scale with enterprise-grade providers like `OpenAI`, `Anthropic`, `Cohere`, and `pgvector`.
-- 📊 **Premium Dashboard**: A beautifully designed, neon-dark Next.js dashboard for visualizing lineage graphs, governance reports, and interacting with the AI context layer.
+- **Premium Dashboard**: A beautifully designed, neon-dark Next.js dashboard for visualizing lineage graphs, governance reports, and interacting with the AI context layer.
 
 ---
 
-## 🏗 Architecture
+## Architecture
 
 DataContextOS is built with modularity and extensibility in mind:
 
@@ -54,7 +54,7 @@ DataContextOS is built with modularity and extensibility in mind:
 
 ---
 
-## 🚀 Getting Started
+## Getting Started
 
 For a comprehensive guide, please refer to the [Full Runbook](docs/USAGE.md).
 
@@ -106,7 +106,7 @@ dcos search "Who owns the orders table and what is its trust score?"
 
 ---
 
-## 💻 Dashboard
+## Dashboard
 
 The Next.js dashboard provides a premium UI to explore your catalog, trace lineage, and chat with the AI.
 
@@ -120,7 +120,7 @@ Visit `http://localhost:3000` to access the DataContextOS interface.
 
 ---
 
-## 🛠 Development & Testing
+## Development & Testing
 
 We enforce strict quality standards using `mypy`, `eslint`, and `pytest`.
 
@@ -138,12 +138,12 @@ npm run lint
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
 We welcome contributions! Please feel free to submit Pull Requests, report issues, and suggest new features to help improve DataContextOS.
 
 ---
 
-## 📄 License
+## License
 
 This project is licensed under the MIT License.
