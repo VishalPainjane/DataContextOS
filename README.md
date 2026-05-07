@@ -1,7 +1,3 @@
-<div align="center">
-  <img src="docs/image.png" alt="DataContextOS Banner" width="800" style="border-radius: 12px;" />
-</div>
-
 # DataContextOS
 
 [![Python Version](https://img.shields.io/badge/python-3.11+-blue.svg)](https://python.org)
